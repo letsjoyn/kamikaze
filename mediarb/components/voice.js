@@ -2,39 +2,44 @@ export function isVoiceSupported() {
     return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
-export function startVoiceInput({ onResult, onError, onEnd, lang = "en-IN" }) {
+export function initVoice(doctorId, state, renderDoctors, addLog) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        if (typeof onError === "function") {
-            onError(new Error("Speech recognition not supported in this browser."));
-        }
+        alert("Voice not supported in this browser. Use Chrome.");
         return null;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = lang;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    const rec = new SpeechRecognition();
+    rec.continuous = false;
+    rec.lang = "en-IN";
+    rec.interimResults = false;
 
-    recognition.onresult = (event) => {
-        const transcript = event.results?.[0]?.[0]?.transcript || "";
-        if (typeof onResult === "function") {
-            onResult(transcript.trim());
+    rec.onresult = (e) => {
+        const transcript = (e.results?.[0]?.[0]?.transcript || "").toLowerCase();
+        const d = state.doctors.find((x) => x.id === doctorId);
+        if (!d) return;
+
+        const urgMatch = transcript.match(/urgency?\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)/);
+        if (urgMatch) {
+            const wordMap = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+            d.urgency = parseInt(urgMatch[1], 10) || wordMap[urgMatch[1]] || d.urgency;
         }
+
+        const waitMatch = transcript.match(/wait(?:ing|ed)?\s*(\d+)/);
+        if (waitMatch) d.waitHrs = parseInt(waitMatch[1], 10);
+
+        if (transcript.includes("cardiac") || transcript.includes("heart")) d.diagnosis = "Cardiac Arrest";
+        if (transcript.includes("sepsis") || transcript.includes("septic")) d.diagnosis = "Septic Shock";
+        if (transcript.includes("trauma")) d.diagnosis = "Multi-organ Failure";
+        if (transcript.includes("stroke")) d.diagnosis = "Stroke";
+
+        renderDoctors();
+        addLog(`Voice input parsed for ${d.name}: "${transcript}"`, "green");
     };
 
-    recognition.onerror = (event) => {
-        if (typeof onError === "function") {
-            onError(new Error(event.error || "voice_error"));
-        }
-    };
+    rec.onerror = (e) => addLog(`Voice error: ${e.error}`, "amber");
+    rec.start();
+    addLog(`Voice input activated for Doctor ${doctorId}`, "default");
 
-    recognition.onend = () => {
-        if (typeof onEnd === "function") {
-            onEnd();
-        }
-    };
-
-    recognition.start();
-    return recognition;
+    return rec;
 }

@@ -6,12 +6,37 @@ const RESOURCE_CRITICALITY = {
     "Blood Bank": 0.9,
 };
 
-export function computeScore(doctor) {
-    const urgScore = (doctor.urgency / 10) * 45;
-    const waitScore = (Math.min(doctor.waitHrs, 12) / 12) * 25;
-    const sevScore = (doctor.severity / 10) * 20;
+const DEFAULT_WEIGHTS = {
+    urgency: 45,
+    wait: 25,
+    severity: 20,
+    age: 10,
+};
+
+function normalizeWeights(weights = DEFAULT_WEIGHTS) {
+    const safe = {
+        urgency: Math.max(0, Number(weights.urgency) || 0),
+        wait: Math.max(0, Number(weights.wait) || 0),
+        severity: Math.max(0, Number(weights.severity) || 0),
+        age: Math.max(0, Number(weights.age) || 0),
+    };
+    const total = safe.urgency + safe.wait + safe.severity + safe.age;
+    if (total === 0) return { ...DEFAULT_WEIGHTS };
+    return {
+        urgency: (safe.urgency / total) * 100,
+        wait: (safe.wait / total) * 100,
+        severity: (safe.severity / total) * 100,
+        age: (safe.age / total) * 100,
+    };
+}
+
+export function computeScore(doctor, weights = DEFAULT_WEIGHTS) {
+    const normalized = normalizeWeights(weights);
+    const urgScore = (doctor.urgency / 10) * normalized.urgency;
+    const waitScore = (Math.min(doctor.waitHrs, 12) / 12) * normalized.wait;
+    const sevScore = (doctor.severity / 10) * normalized.severity;
     const ageRisk = doctor.age > 65 ? 10 : doctor.age > 50 ? 7 : doctor.age < 5 ? 9 : 5;
-    const ageScore = (ageRisk / 10) * 10;
+    const ageScore = (ageRisk / 10) * normalized.age;
 
     return {
         total: +(urgScore + waitScore + sevScore + ageScore).toFixed(2),
@@ -34,7 +59,7 @@ export function computeCIS(doctors, resourceType) {
     return Math.min(Math.round(nFactor + gapFactor + critFactor + waitFactor), 100);
 }
 
-export function detectEdgeCases(doctors) {
+export function detectEdgeCases(doctors, weights = DEFAULT_WEIGHTS) {
     const edges = [];
 
     doctors.forEach((d) => {
@@ -52,7 +77,7 @@ export function detectEdgeCases(doctors) {
         }
     });
 
-    const scores = doctors.map((d) => computeScore(d).total);
+    const scores = doctors.map((d) => computeScore(d, weights).total);
     const unique = new Set(scores);
     if (unique.size < scores.length) {
         edges.push("Tie detected in weighted scores - escalation protocol activated");
@@ -67,18 +92,37 @@ export function getResolutionMethod(cis) {
     return "Triage Protocol";
 }
 
-export function generateVerdict(winner, method, cis) {
+export function generateVerdict(winner, method, cis, weights = DEFAULT_WEIGHTS) {
+    const normalized = normalizeWeights(weights);
+    const urgencyW = normalized.urgency.toFixed(1);
+    const waitW = normalized.wait.toFixed(1);
+    const severityW = normalized.severity.toFixed(1);
+    const ageW = normalized.age.toFixed(1);
     const reasons = {
         Consensus: `Under consensus scoring (CIS ${cis} - low conflict), ${winner.name}'s request was processed first with the highest urgency score, satisfying first-come-first-served protocol.`,
-        "Weighted Scoring": `Under weighted scoring (CIS ${cis} - medium conflict), a multi-factor formula applied: urgency x45%, wait time x25%, severity x20%, age risk x10%. ${winner.name} achieved the highest composite score of ${computeScore(winner).total.toFixed(1)}.`,
+        "Weighted Scoring": `Under weighted scoring (CIS ${cis} - medium conflict), a multi-factor formula applied: urgency x${urgencyW}%, wait time x${waitW}%, severity x${severityW}%, age risk x${ageW}%. ${winner.name} achieved the highest composite score of ${computeScore(winner, weights).total.toFixed(1)}.`,
         "Triage Protocol": `Under SALT/START triage protocol (CIS ${cis} - HIGH conflict), strict medical priority rules were applied. ${winner.name}'s patient presents the most critical immediate risk: urgency ${winner.urgency}/10, severity ${winner.severity}/10, with ${winner.waitHrs}h wait time accumulated.`,
     };
 
     return reasons[method] || "";
 }
 
-export function resolveConflict(doctors, method) {
-    const scored = doctors.map((d, index) => ({ ...d, reqOrder: index, ...computeScore(d) }));
+export function resolveConflict(doctors, method, options = {}) {
+    const { weights = DEFAULT_WEIGHTS, dominanceMap = {}, dominancePenaltyStep = 2, dominancePenaltyCap = 12 } = options;
+    const scored = doctors.map((d, index) => {
+        const base = computeScore(d, weights);
+        const wins = dominanceMap[d.name] || 0;
+        const dominancePenalty = Math.min(wins * dominancePenaltyStep, dominancePenaltyCap);
+        const adjustedTotal = Math.max(0, +(base.total - dominancePenalty).toFixed(2));
+        return {
+            ...d,
+            reqOrder: index,
+            ...base,
+            baseTotal: base.total,
+            dominancePenalty,
+            total: adjustedTotal,
+        };
+    });
 
     if (method === "Consensus") {
         scored.sort((a, b) => {
