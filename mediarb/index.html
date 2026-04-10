@@ -156,7 +156,7 @@
           <div class="panel-body" style="padding-top:12px">
             <div class="method-row">
               <div class="method-card" id="mLow">
-                <div class="method-name">Consensus</div>
+                <div class="method-name">FIFO + Urgency</div>
                 <div class="method-range">CIS 0–39</div>
                 <div class="method-dot"></div>
               </div>
@@ -524,7 +524,15 @@
 
     function updateDoc(id, field, val) {
       const d = state.doctors.find(x => x.id === id);
-      if (d) { d[field] = val; renderDoctors(); updateResolveBtn(); }
+      if (d) {
+        if (field === 'urgency') d[field] = Math.min(10, Math.max(1, Number(val) || 1));
+        else if (field === 'waitHrs') d[field] = Math.min(12, Math.max(0, Number(val) || 0));
+        else if (field === 'severity') d[field] = Math.min(10, Math.max(1, Number(val) || 1));
+        else if (field === 'age') d[field] = Math.min(110, Math.max(1, Number(val) || 1));
+        else d[field] = val;
+        renderDoctors();
+        updateResolveBtn();
+      }
     }
 
     function updateResolveBtn() {
@@ -547,6 +555,9 @@
       docs.forEach(d => {
         if (!d.severity || d.severity < 1) { d.severity = 7; addLog(`${d.name}: severity missing — defaulted to 7`, 'amber'); }
         if (!d.age || d.age < 1) { d.age = 45; addLog(`${d.name}: age missing — defaulted to 45`, 'amber'); }
+        if (d.severity > 10) { d.severity = 10; addLog(`${d.name}: severity capped to 10`, 'amber'); }
+        if (d.age > 110) { d.age = 110; addLog(`${d.name}: age capped to 110`, 'amber'); }
+        if (d.waitHrs > 12) { d.waitHrs = 12; addLog(`${d.name}: wait time capped to 12h`, 'amber'); }
       });
 
       const edgeCases = detectEdgeCases(docs, state.preferenceWeights);
@@ -583,6 +594,13 @@
         addLog('TIE DETECTED — applying seniority override', 'amber');
       }
 
+      scored.forEach((s) => {
+        if (s.dominancePenalty > 0) {
+          const priorWins = state.dominanceWins[s.name] || 0;
+          addLog(`Fairness penalty applied -> ${s.name}: -${s.dominancePenalty} (${priorWins} prior wins)`, 'amber');
+        }
+      });
+
       // Update CIS display
       updateCIS(cis);
       updateMethodCards(method);
@@ -593,9 +611,12 @@
       });
 
       const queueOrder = queue.toArray();
-      const winnerScore = Math.max(winner.total, 1);
+      const winnerScore = Math.max(winner.baseTotal || winner.total, 1);
       scored.forEach((d) => {
-        d.satisfaction = +Math.min(100, Math.max(0, (d.total / winnerScore) * 100)).toFixed(1);
+        const preferenceFit = Math.min(100, Math.max(0, d.baseTotal || d.total));
+        const gapRatio = Math.max(0, (winnerScore - (d.baseTotal || d.total)) / winnerScore);
+        const competitiveness = d.name === winner.name ? 100 : Math.max(0, 100 - gapRatio * 120);
+        d.satisfaction = +Math.min(100, Math.max(0, (preferenceFit * 0.6) + (competitiveness * 0.4))).toFixed(1);
       });
 
       const reasoning = state.aiNarrativeEnabled
@@ -611,7 +632,7 @@
 
       state.latestResolution = {
         winner,
-        rejected: queueOrder,
+        rejectedQueue: queueOrder,
         method,
         cis,
         reasoning
@@ -669,7 +690,7 @@
 
     function updateMethodCards(method) {
       ['mLow', 'mMed', 'mHigh'].forEach(id => document.getElementById(id).classList.remove('active'));
-      const map = { 'Consensus': 'mLow', 'Weighted Scoring': 'mMed', 'Triage Protocol': 'mHigh' };
+      const map = { 'FIFO + Urgency': 'mLow', 'Weighted Scoring': 'mMed', 'Triage Protocol': 'mHigh' };
       if (map[method]) document.getElementById(map[method]).classList.add('active');
     }
 
@@ -683,6 +704,7 @@
           <span class="winner-badge">WINNER</span>
         </div>
         <div class="verdict-resource">${state.selectedResource} · ${winner.dept} · ${winner.rank}</div>
+        ${winner.dominancePenalty > 0 ? `<div style="font-size:11px;color:var(--amber);margin-top:6px">Fairness balancing applied: -${winner.dominancePenalty} dominance penalty (${state.dominanceWins[winner.name] || 0} prior wins)</div>` : ''}
         <div class="verdict-reasoning">${reasoning}</div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
@@ -727,9 +749,17 @@
     }
 
     function renderFactors(winner, method) {
-      const w = computeScore(winner, state.preferenceWeights);
+      const w = {
+        urgScore: winner.urgScore,
+        waitScore: winner.waitScore,
+        sevScore: winner.sevScore,
+        ageScore: winner.ageScore,
+        baseTotal: winner.baseTotal || winner.total,
+        finalTotal: winner.total,
+        dominancePenalty: winner.dominancePenalty || 0
+      };
       const activeWeights = state.preferenceWeights || { urgency: 45, wait: 25, severity: 20, age: 10 };
-      const weights = method === 'Consensus'
+      const weights = method === 'FIFO + Urgency'
         ? { urg: 'FCFS + urgency', wait: 'Secondary', sev: 'Tertiary', age: 'N/A' }
         : {
           urg: `x${activeWeights.urgency.toFixed(1)}%`,
@@ -760,25 +790,42 @@
         <div class="factor-weight">${weights.age}</div>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px">Winner: ${winner.name} · Total: <span style="color:var(--green);font-family:'DM Mono',monospace">${winner.total}</span></div>
+    <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px">Winner: ${winner.name} · Base: <span style="font-family:'DM Mono',monospace">${w.baseTotal.toFixed(2)}</span> · Penalty: <span style="font-family:'DM Mono',monospace;color:var(--amber)">-${w.dominancePenalty.toFixed(2)}</span> · Final: <span style="color:var(--green);font-family:'DM Mono',monospace">${w.finalTotal.toFixed(2)}</span></div>
   `;
+    }
+
+    function getWeakestFactor(d) {
+      const factors = [
+        { key: 'urgency', val: d.urgScore },
+        { key: 'wait time', val: d.waitScore },
+        { key: 'severity', val: d.sevScore },
+        { key: 'age risk', val: d.ageScore }
+      ];
+      factors.sort((a, b) => a.val - b.val);
+      return factors[0].key;
+    }
+
+    function buildRejectionReason(d, winner, method) {
+      const gap = (winner.total - d.total).toFixed(2);
+      const weakest = getWeakestFactor(d);
+      if (method === 'FIFO + Urgency') {
+        return `Lower queue priority under FIFO + urgency and weaker ${weakest} contribution (score gap ${gap}).`;
+      }
+      if (method === 'Triage Protocol') {
+        return `Triage threshold not met versus winner on urgency/severity profile, with weaker ${weakest} contribution (score gap ${gap}).`;
+      }
+      return `Lower weighted total due to weaker ${weakest} contribution (score gap ${gap}).`;
     }
 
     function renderRejections(rejected, winner) {
       if (!rejected.length) { document.getElementById('rejBody').innerHTML = '<div style="color:var(--t3);font-size:12px;text-align:center;padding:8px">No rejected claimants</div>'; return; }
-      const reasons = {
-        0: 'Insufficient urgency score relative to allocated patient',
-        1: 'Lower composite score under weighted algorithm',
-        2: 'Triage protocol prioritises higher immediate risk',
-        3: 'Wait time contribution insufficient to overcome urgency gap',
-        4: 'Severity score below threshold for current conflict level'
-      };
+      const method = state.latestResolution?.method || 'Weighted Scoring';
       document.getElementById('rejBody').innerHTML = `
     <div class="rejection-list fade-in">
       ${rejected.map((d, i) => `
         <div class="rejection-item">
           <div class="rej-doc" style="color:${d.color}">${d.name}</div>
-          <div class="rej-reason">${reasons[i % 5]} (score: <span style="font-family:'DM Mono',monospace">${d.total}</span> vs winner's <span style="font-family:'DM Mono',monospace;color:var(--green)">${winner.total}</span>)</div>
+          <div class="rej-reason">${buildRejectionReason(d, winner, method)} (score: <span style="font-family:'DM Mono',monospace">${d.total}</span> vs winner's <span style="font-family:'DM Mono',monospace;color:var(--green)">${winner.total}</span>)</div>
           <div class="rej-eta">ETA ~${estimateQueueEtaHours(i + 1)}h</div>
         </div>
       `).join('')}
@@ -864,7 +911,7 @@
       addLog(`Domain switched to: ${domain}`, 'amber');
     }
 
-    function exportPDF(winner, rejected, method, cis, reasoning) {
+    function exportPDF(winner, rejectedQueue, method, cis, reasoning) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
@@ -900,7 +947,7 @@
       doc.setFont('helvetica', 'bold');
       doc.text('REJECTED CLAIMANTS', 20, 150);
       doc.setFont('helvetica', 'normal');
-      rejected.forEach((r, i) => {
+      rejectedQueue.forEach((r, i) => {
         doc.text(`${r.name}: score ${r.total} (urgency ${r.urgency}, severity ${r.severity})`, 20, 160 + i * 10);
       });
 
@@ -913,8 +960,8 @@
         addLog('Resolve a conflict before exporting PDF', 'amber');
         return;
       }
-      const { winner, rejected, method, cis, reasoning } = state.latestResolution;
-      exportPDF(winner, rejected, method, cis, reasoning);
+      const { winner, rejectedQueue, method, cis, reasoning } = state.latestResolution;
+      exportPDF(winner, rejectedQueue, method, cis, reasoning);
     }
 
     // ─── INIT ────────────────────────────────────────────────────────────────────

@@ -66,13 +66,13 @@ export function detectEdgeCases(doctors, weights = DEFAULT_WEIGHTS) {
         if (!d.urgency || d.urgency < 1 || d.urgency > 10) {
             edges.push(`${d.name}: urgency out of valid range (${d.urgency})`);
         }
-        if (!d.severity || d.severity < 1) {
+        if (!d.severity || d.severity < 1 || d.severity > 10) {
             edges.push(`${d.name}: missing severity - using default (7)`);
         }
         if (d.urgency >= 9 && d.severity <= 3) {
             edges.push(`${d.name}: contradiction - urgency ${d.urgency} but severity ${d.severity}. Flagged for review.`);
         }
-        if (!d.age || d.age < 1) {
+        if (!d.age || d.age < 1 || d.age > 110) {
             edges.push(`${d.name}: invalid patient age - using actuarial default`);
         }
     });
@@ -87,7 +87,7 @@ export function detectEdgeCases(doctors, weights = DEFAULT_WEIGHTS) {
 }
 
 export function getResolutionMethod(cis) {
-    if (cis < 40) return "Consensus";
+    if (cis < 40) return "FIFO + Urgency";
     if (cis < 75) return "Weighted Scoring";
     return "Triage Protocol";
 }
@@ -99,7 +99,7 @@ export function generateVerdict(winner, method, cis, weights = DEFAULT_WEIGHTS) 
     const severityW = normalized.severity.toFixed(1);
     const ageW = normalized.age.toFixed(1);
     const reasons = {
-        Consensus: `Under consensus scoring (CIS ${cis} - low conflict), ${winner.name}'s request was processed first with the highest urgency score, satisfying first-come-first-served protocol.`,
+        "FIFO + Urgency": `Under FIFO + urgency scoring (CIS ${cis} - low conflict), ${winner.name}'s request was prioritized by request order with urgency tie-break support.`,
         "Weighted Scoring": `Under weighted scoring (CIS ${cis} - medium conflict), a multi-factor formula applied: urgency x${urgencyW}%, wait time x${waitW}%, severity x${severityW}%, age risk x${ageW}%. ${winner.name} achieved the highest composite score of ${computeScore(winner, weights).total.toFixed(1)}.`,
         "Triage Protocol": `Under SALT/START triage protocol (CIS ${cis} - HIGH conflict), strict medical priority rules were applied. ${winner.name}'s patient presents the most critical immediate risk: urgency ${winner.urgency}/10, severity ${winner.severity}/10, with ${winner.waitHrs}h wait time accumulated.`,
     };
@@ -124,7 +124,7 @@ export function resolveConflict(doctors, method, options = {}) {
         };
     });
 
-    if (method === "Consensus") {
+    if (method === "FIFO + Urgency") {
         scored.sort((a, b) => {
             if (a.reqOrder !== b.reqOrder) return a.reqOrder - b.reqOrder;
             return b.urgency - a.urgency;
