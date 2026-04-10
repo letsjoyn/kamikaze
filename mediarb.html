@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediArb — Hospital Resource Conflict Resolver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f0f0f;
+  --s1:#161616;
+  --s2:#1c1c1c;
+  --s3:#222222;
+  --s4:#2a2a2a;
+  --border:#2e2e2e;
+  --border2:#3a3a3a;
+  --t1:#f0f0f0;
+  --t2:#a0a0a0;
+  --t3:#606060;
+  --green:#2ecc71;
+  --green2:#27ae60;
+  --red:#e74c3c;
+  --amber:#f39c12;
+  --blue:#3498db;
+  --low:#2ecc71;
+  --med:#f39c12;
+  --high:#e74c3c;
+  --radius:6px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+.mono{font-family:'DM Mono',monospace}
+
+/* TOPBAR */
+.topbar{background:var(--s1);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:28px;height:28px;background:var(--green);border-radius:4px;display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:16px;height:16px}
+.logo-name{font-weight:600;font-size:15px;letter-spacing:-0.3px}
+.logo-tag{font-size:11px;color:var(--t3);margin-left:4px;font-weight:400}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.status-text{font-size:12px;color:var(--t2);display:flex;align-items:center;gap:6px}
+.tag{background:var(--s3);border:1px solid var(--border);padding:2px 8px;border-radius:3px;font-size:11px;color:var(--t2);font-family:'DM Mono',monospace}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:320px 1fr;min-height:calc(100vh - 52px)}
+.sidebar{background:var(--s1);border-right:1px solid var(--border);padding:20px;overflow-y:auto;max-height:calc(100vh - 52px);position:sticky;top:52px}
+.main{padding:20px;overflow-y:auto}
+
+/* SECTION HEADERS */
+.sec-header{margin-bottom:16px}
+.sec-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;color:var(--t3);margin-bottom:2px}
+.sec-sub{font-size:13px;color:var(--t1);font-weight:500}
+
+/* RESOURCE SELECTOR */
+.resource-tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.rtab{padding:5px 10px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--t2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s}
+.rtab:hover{border-color:var(--border2);color:var(--t1)}
+.rtab.active{background:var(--green);border-color:var(--green);color:#000;font-weight:500}
+
+/* FORM */
+.form-group{margin-bottom:12px}
+.form-label{font-size:11px;color:var(--t2);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.form-label span{font-family:'DM Mono',monospace;color:var(--green);font-size:11px}
+.form-input{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:7px 10px;color:var(--t1);font-family:'DM Sans',sans-serif;font-size:13px;transition:border 0.15s;outline:none}
+.form-input:focus{border-color:var(--border2)}
+.form-input::placeholder{color:var(--t3)}
+select.form-input{cursor:pointer}
+select.form-input option{background:var(--s2)}
+
+/* SLIDER */
+.slider-row{display:flex;align-items:center;gap:8px}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:var(--s4);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--green);cursor:pointer;border:2px solid var(--bg)}
+.slider-val{font-family:'DM Mono',monospace;font-size:13px;color:var(--green);min-width:20px;text-align:right}
+
+/* DOCTOR PANEL */
+.doctor-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;transition:border 0.2s}
+.doctor-card.active-doc{border-color:var(--green)}
+.doctor-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.doctor-id{display:flex;align-items:center;gap:8px}
+.doc-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.doc-name{font-size:13px;font-weight:500}
+.doc-dept{font-size:11px;color:var(--t3)}
+.doctor-body{padding:12px;border-top:1px solid var(--border);display:none}
+.doctor-body.open{display:block}
+.doctor-score-preview{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{background:var(--s3);border:1px solid var(--border);padding:2px 7px;border-radius:3px;font-size:11px;color:var(--t2);font-family:'DM Mono',monospace}
+.chip.urg{border-color:rgba(231,76,60,0.3);color:#e74c3c}
+.chip.wait{border-color:rgba(52,152,219,0.3);color:#3498db}
+.chip.sev{border-color:rgba(243,156,18,0.3);color:#f39c12}
+
+/* ADD DOCTOR BTN */
+.add-btn{width:100%;padding:8px;border:1px dashed var(--border);border-radius:var(--radius);background:transparent;color:var(--t3);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px}
+.add-btn:hover{border-color:var(--border2);color:var(--t2)}
+
+/* RESOLVE BTN */
+.resolve-btn{width:100%;padding:10px;border-radius:var(--radius);border:none;background:var(--green);color:#000;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.resolve-btn:hover{background:var(--green2)}
+.resolve-btn:disabled{opacity:0.4;cursor:not-allowed}
+.resolve-btn:active{transform:scale(0.98)}
+
+/* MAIN PANELS */
+.panel{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.panel-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:12px;font-weight:500;color:var(--t2);text-transform:uppercase;letter-spacing:0.06em;display:flex;align-items:center;gap:8px}
+.panel-body{padding:16px}
+
+/* CIS METER */
+.cis-meter{margin-bottom:20px}
+.cis-top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px}
+.cis-number{font-size:42px;font-weight:300;font-family:'DM Mono',monospace;line-height:1;letter-spacing:-2px}
+.cis-label{font-size:11px;font-weight:600;padding:3px 8px;border-radius:3px;text-transform:uppercase;letter-spacing:0.06em}
+.cis-bar-track{height:4px;background:var(--s4);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.cis-bar-fill{height:100%;border-radius:2px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1),background 0.5s}
+.cis-ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-family:'DM Mono',monospace}
+.cis-low{color:var(--low)}
+.cis-med{color:var(--med)}
+.cis-high{color:var(--high)}
+
+/* RESOLUTION METHOD */
+.method-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.method-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;text-align:center;transition:all 0.2s}
+.method-card.active{border-color:var(--green)}
+.method-card.active .method-name{color:var(--green)}
+.method-name{font-size:12px;font-weight:500;margin-bottom:2px}
+.method-range{font-size:10px;color:var(--t3);font-family:'DM Mono',monospace}
+.method-dot{width:6px;height:6px;border-radius:50%;margin:6px auto 0;background:var(--s4)}
+.method-card.active .method-dot{background:var(--green)}
+
+/* VERDICT */
+.verdict-box{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;border-left:3px solid var(--green)}
+.verdict-winner{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.verdict-name{font-size:18px;font-weight:500;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.verdict-resource{font-size:12px;color:var(--t2)}
+.verdict-reasoning{font-size:13px;color:var(--t2);line-height:1.6;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+
+/* SCORE BREAKDOWN */
+.score-table{width:100%}
+.score-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
+.score-row:last-child{border-bottom:none}
+.score-doctor{min-width:80px;font-size:12px;font-weight:500}
+.score-bar-wrap{flex:1;height:4px;background:var(--s4);border-radius:2px;overflow:hidden}
+.score-bar-inner{height:100%;border-radius:2px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+.score-val{min-width:36px;text-align:right;font-family:'DM Mono',monospace;font-size:12px}
+.score-status{min-width:16px}
+.winner-badge{font-size:10px;background:rgba(46,204,113,0.15);color:var(--green);border:1px solid rgba(46,204,113,0.3);padding:1px 6px;border-radius:2px}
+
+/* FACTOR BREAKDOWN */
+.factor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.factor-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.factor-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.factor-val{font-size:16px;font-weight:500;font-family:'DM Mono',monospace}
+.factor-weight{font-size:10px;color:var(--t3);margin-top:2px}
+
+/* REJECTIONS */
+.rejection-list{display:flex;flex-direction:column;gap:8px}
+.rejection-item{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start}
+.rej-doc{font-size:12px;font-weight:500;white-space:nowrap}
+.rej-reason{font-size:12px;color:var(--t2);line-height:1.5}
+.rej-eta{font-size:11px;color:var(--t3);font-family:'DM Mono',monospace;white-space:nowrap;text-align:right}
+
+/* AUDIT LOG */
+.log-list{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log-entry{padding:7px 10px;background:var(--s2);border-radius:var(--radius);display:flex;gap:12px;align-items:flex-start;font-size:12px;font-family:'DM Mono',monospace}
+.log-time{color:var(--t3);white-space:nowrap;min-width:85px}
+.log-msg{color:var(--t2);line-height:1.4}
+.log-msg.green{color:var(--green)}
+.log-msg.red{color:var(--red)}
+.log-msg.amber{color:var(--amber)}
+
+/* EDGE CASE */
+.edge-alert{background:rgba(243,156,18,0.08);border:1px solid rgba(243,156,18,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);display:none;align-items:flex-start;gap:8px;line-height:1.5}
+.edge-alert.show{display:flex}
+
+/* LOADING */
+.loading-overlay{position:absolute;inset:0;background:rgba(15,15,15,0.8);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;border-radius:var(--radius);backdrop-filter:blur(2px)}
+.spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:12px;color:var(--t2);font-family:'DM Mono',monospace}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:48px 20px;color:var(--t3)}
+.empty-icon{font-size:32px;margin-bottom:12px;opacity:0.4}
+.empty-text{font-size:13px;line-height:1.6}
+
+/* DEMO BTN */
+.demo-btn{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);background:transparent;color:var(--t2);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s}
+.demo-btn:hover{border-color:var(--border2);color:var(--t1)}
+
+/* CONFLICT HISTORY */
+.hist-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:opacity 0.15s}
+.hist-row:hover{opacity:0.8}
+.hist-row:last-child{border-bottom:none}
+.hist-cis{font-family:'DM Mono',monospace;font-size:12px;min-width:32px}
+.hist-desc{flex:1;font-size:12px;color:var(--t2)}
+.hist-time{font-size:11px;color:var(--t3);font-family:'DM Mono',monospace}
+
+/* RESPONSIVE TWEAKS */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+
+/* ANIMATIONS */
+.fade-in{animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.slide-in{animation:slideIn 0.4s cubic-bezier(0.4,0,0.2,1)}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+
+/* TOOLTIP */
+.tooltip{position:relative;display:inline-block}
+.tooltip:hover .tt{visibility:visible;opacity:1}
+.tt{visibility:hidden;opacity:0;background:var(--s4);color:var(--t1);font-size:11px;border-radius:4px;padding:4px 8px;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;transition:opacity 0.15s;border:1px solid var(--border2);z-index:200;pointer-events:none}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 2L14 5.5V10.5L8 14L2 10.5V5.5L8 2Z" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" fill="#000"/></svg>
+    </div>
+    <span class="logo-name">MediArb</span>
+    <span class="logo-tag">Hospital Resource Conflict Resolver</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-text"><div class="status-dot"></div>System live</div>
+    <span class="tag" id="sessionId">SESSION—</span>
+    <button class="demo-btn" onclick="loadDemo()">Load demo</button>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sec-header">
+      <div class="sec-title">Resource type</div>
+    </div>
+    <div class="resource-tabs" id="resourceTabs">
+      <button class="rtab active" data-r="ICU Bed">ICU Bed</button>
+      <button class="rtab" data-r="Ventilator">Ventilator</button>
+      <button class="rtab" data-r="OT Slot">OT Slot</button>
+      <button class="rtab" data-r="MRI Scanner">MRI Scanner</button>
+      <button class="rtab" data-r="Blood Bank">Blood Bank</button>
+    </div>
+
+    <div class="divider" style="margin:12px 0"></div>
+    <div class="sec-header">
+      <div class="sec-title">Competing requests</div>
+      <div style="font-size:11px;color:var(--t3)" id="doctorCount">0 claimants</div>
+    </div>
+
+    <div id="doctorCards"></div>
+
+    <button class="add-btn" onclick="addDoctor()" id="addBtn">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Add claimant
+    </button>
+
+    <div class="divider" style="margin:8px 0 12px"></div>
+    <button class="resolve-btn" onclick="resolve()" id="resolveBtn" disabled>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L13 4.5V9.5L7 13L1 9.5V4.5L7 1Z" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      Resolve conflict
+    </button>
+
+    <div class="divider" style="margin:12px 0"></div>
+    <div class="sec-header" style="margin-bottom:8px">
+      <div class="sec-title">Resolution history</div>
+    </div>
+    <div id="historyList">
+      <div style="font-size:12px;color:var(--t3);text-align:center;padding:12px 0">No resolutions yet</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOP METRIC ROW -->
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+          <div class="panel-title">Conflict Intensity Score</div>
+          <div class="tooltip"><span style="font-size:11px;color:var(--t3);cursor:help">CIS ?</span><span class="tt">Computed from urgency gap, resource criticality, competing requests & wait time</span></div>
+        </div>
+        <div class="panel-body">
+          <div class="cis-meter">
+            <div class="cis-top">
+              <div class="cis-number" id="cisNumber" style="color:var(--t3)">—</div>
+              <div class="cis-label" id="cisLabel" style="background:var(--s3);color:var(--t3)">PENDING</div>
+            </div>
+            <div class="cis-bar-track"><div class="cis-bar-fill" id="cisBar" style="width:0%;background:var(--t3)"></div></div>
+            <div class="cis-ticks"><span class="cis-low">LOW</span><span class="cis-med">MEDIUM</span><span class="cis-high">HIGH</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+          <div class="panel-title">Resolution method</div>
+        </div>
+        <div class="panel-body" style="padding-top:12px">
+          <div class="method-row">
+            <div class="method-card" id="mLow">
+              <div class="method-name">Consensus</div>
+              <div class="method-range">CIS 0–39</div>
+              <div class="method-dot"></div>
+            </div>
+            <div class="method-card" id="mMed">
+              <div class="method-name">Weighted</div>
+              <div class="method-range">CIS 40–74</div>
+              <div class="method-dot"></div>
+            </div>
+            <div class="method-card" id="mHigh">
+              <div class="method-name">Triage</div>
+              <div class="method-range">CIS 75–100</div>
+              <div class="method-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDGE CASE ALERT -->
+    <div class="edge-alert" id="edgeAlert">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-top:1px;flex-shrink:0"><path d="M7 1L13 12H1L7 1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M7 5.5v3M7 10h.01" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      <span id="edgeMsg"></span>
+    </div>
+
+    <!-- VERDICT -->
+    <div class="panel" id="verdictPanel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4.5" stroke="currentColor" stroke-width="1"/><path d="M3 5l1.5 1.5L7 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Verdict
+        </div>
+        <div id="verdictTime" style="font-size:11px;color:var(--t3);font-family:'DM Mono',monospace"></div>
+      </div>
+      <div class="panel-body" id="verdictBody">
+        <div class="empty-state">
+          <div class="empty-icon">⚖</div>
+          <div class="empty-text">Add at least 2 claimants for the same resource<br>and press <strong>Resolve conflict</strong> to see the verdict</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCORE BREAKDOWN + FACTORS -->
+    <div class="grid-2">
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header"><div class="panel-title">Score breakdown</div></div>
+        <div class="panel-body" id="scoreBody">
+          <div style="color:var(--t3);font-size:12px;text-align:center;padding:16px 0">Awaiting resolution</div>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-header"><div class="panel-title">Factor contributions</div></div>
+        <div class="panel-body" id="factorBody">
+          <div style="color:var(--t3);font-size:12px;text-align:center;padding:16px 0">Awaiting resolution</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REJECTIONS -->
+    <div class="panel" id="rejPanel">
+      <div class="panel-header"><div class="panel-title">Rejected claimants — reasons & alternatives</div></div>
+      <div class="panel-body" id="rejBody">
+        <div style="color:var(--t3);font-size:12px;text-align:center;padding:12px 0">Awaiting resolution</div>
+      </div>
+    </div>
+
+    <!-- AUDIT LOG -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Audit log <span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:4px;font-family:'DM Mono',monospace">immutable</span></div>
+        <div style="font-size:11px;color:var(--t3)" id="logCount">0 entries</div>
+      </div>
+      <div class="panel-body" style="padding:8px">
+        <div class="log-list" id="logList">
+          <div style="text-align:center;color:var(--t3);font-size:12px;font-family:'DM Mono',monospace;padding:8px">— log empty —</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const state = {
+  doctors: [],
+  selectedResource: 'ICU Bed',
+  resolution: null,
+  history: [],
+  logs: [],
+  nextId: 1,
+  sessionId: Math.random().toString(36).substr(2,6).toUpperCase()
+};
+
+document.getElementById('sessionId').textContent = 'SESSION—' + state.sessionId;
+
+const COLORS = ['#3498db','#9b59b6','#e74c3c','#f39c12','#1abc9c','#e67e22'];
+const DEPTS = ['Cardiology','Neurology','Emergency','Orthopedics','Oncology','Pulmonology'];
+const DIAGNOSES = {
+  'ICU Bed': ['Cardiac Arrest','Septic Shock','Stroke','Multi-organ Failure','Respiratory Failure'],
+  'Ventilator': ['ARDS','Pneumonia','COVID-19 Critical','Respiratory Failure','Post-op ICU'],
+  'OT Slot': ['Emergency Appendectomy','Trauma Surgery','Cardiac Surgery','Bowel Obstruction','Head Injury'],
+  'MRI Scanner': ['Brain Tumor','Spinal Injury','Stroke Protocol','Cardiac MRI','Vascular Malformation'],
+  'Blood Bank': ['Trauma Hemorrhage','Sickle Cell Crisis','Surgical Bleed','DIC','Post-partum Hemorrhage']
+};
+
+// ─── RESOURCE TABS ───────────────────────────────────────────────────────────
+document.querySelectorAll('.rtab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.rtab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    state.selectedResource = t.dataset.r;
+    updateResolveBtn();
+  });
+});
+
+// ─── DOCTOR MANAGEMENT ───────────────────────────────────────────────────────
+function addDoctor(data = null) {
+  if (state.doctors.length >= 6) return;
+  const id = state.nextId++;
+  const color = COLORS[(id - 1) % COLORS.length];
+  const dept = data?.dept || DEPTS[Math.floor(Math.random() * DEPTS.length)];
+  const doc = {
+    id, color, dept,
+    name: data?.name || `Dr. ${['Sharma','Patel','Mehta','Rao','Iyer','Kumar'][id % 6]}`,
+    urgency: data?.urgency ?? Math.floor(Math.random() * 4) + 6,
+    waitHrs: data?.waitHrs ?? Math.floor(Math.random() * 3),
+    age: data?.age ?? Math.floor(Math.random() * 50) + 30,
+    severity: data?.severity ?? Math.floor(Math.random() * 3) + 7,
+    diagnosis: data?.diagnosis || (DIAGNOSES[state.selectedResource] || DIAGNOSES['ICU Bed'])[Math.floor(Math.random() * 5)],
+    rank: data?.rank || ['Attending','Senior Resident','Junior Resident'][Math.floor(Math.random()*3)]
+  };
+  state.doctors.push(doc);
+  renderDoctors();
+  updateResolveBtn();
+  addLog(`Request received from ${doc.name} (${doc.dept}) for ${state.selectedResource}`, 'default');
+}
+
+function removeDoctor(id) {
+  state.doctors = state.doctors.filter(d => d.id !== id);
+  renderDoctors();
+  updateResolveBtn();
+}
+
+function renderDoctors() {
+  const el = document.getElementById('doctorCards');
+  document.getElementById('doctorCount').textContent = state.doctors.length + ' claimant' + (state.doctors.length !== 1 ? 's' : '');
+  if (!state.doctors.length) { el.innerHTML = ''; return; }
+  el.innerHTML = state.doctors.map(d => `
+    <div class="doctor-card" id="dc-${d.id}">
+      <div class="doctor-header" onclick="toggleDoc(${d.id})">
+        <div class="doctor-id">
+          <div class="doc-avatar" style="background:${d.color}22;color:${d.color};border:1px solid ${d.color}44">${d.name.split(' ').map(w=>w[0]).join('').substr(0,2)}</div>
+          <div>
+            <div class="doc-name">${d.name}</div>
+            <div class="doc-dept">${d.dept} · ${d.rank}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button onclick="event.stopPropagation();removeDoctor(${d.id})" style="background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px;border-radius:3px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--t3)'">×</button>
+        </div>
+      </div>
+      <div class="doctor-body open" id="db-${d.id}">
+        <div class="form-group">
+          <div class="form-label">Diagnosis<span>${d.diagnosis}</span></div>
+          <select class="form-input" onchange="updateDoc(${d.id},'diagnosis',this.value)">
+            ${(DIAGNOSES[state.selectedResource]||DIAGNOSES['ICU Bed']).map(x=>`<option ${x===d.diagnosis?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Urgency (1–10)<span id="u-${d.id}">${d.urgency}</span></div>
+          <div class="slider-row">
+            <input type="range" min="1" max="10" value="${d.urgency}" oninput="updateDoc(${d.id},'urgency',+this.value);document.getElementById('u-${d.id}').textContent=this.value">
+            <span class="slider-val" style="color:${d.urgency>=8?'var(--red)':d.urgency>=5?'var(--amber)':'var(--green)'};">${d.urgency}</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Wait time (hrs)<span id="w-${d.id}">${d.waitHrs}h</span></div>
+          <div class="slider-row">
+            <input type="range" min="0" max="12" value="${d.waitHrs}" oninput="updateDoc(${d.id},'waitHrs',+this.value);document.getElementById('w-${d.id}').textContent=this.value+'h'">
+            <span class="slider-val">${d.waitHrs}</span>
+          </div>
+        </div>
+        <div class="grid-2" style="gap:8px">
+          <div class="form-group" style="margin-bottom:0">
+            <div class="form-label">Patient age</div>
+            <input class="form-input" type="number" min="1" max="110" value="${d.age}" oninput="updateDoc(${d.id},'age',+this.value)" placeholder="Age">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <div class="form-label">Severity (1–10)</div>
+            <input class="form-input" type="number" min="1" max="10" value="${d.severity}" oninput="updateDoc(${d.id},'severity',+this.value)" placeholder="1–10">
+          </div>
+        </div>
+        <div class="doctor-score-preview" style="margin-top:10px">
+          <span class="chip urg">URG: ${d.urgency}</span>
+          <span class="chip wait">WAIT: ${d.waitHrs}h</span>
+          <span class="chip sev">SEV: ${d.severity}</span>
+          <span class="chip">AGE: ${d.age}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('addBtn').style.display = state.doctors.length >= 6 ? 'none' : 'flex';
+}
+
+function toggleDoc(id) {
+  const el = document.getElementById('db-' + id);
+  el.classList.toggle('open');
+}
+
+function updateDoc(id, field, val) {
+  const d = state.doctors.find(x => x.id === id);
+  if (d) { d[field] = val; renderDoctors(); updateResolveBtn(); }
+}
+
+function updateResolveBtn() {
+  const btn = document.getElementById('resolveBtn');
+  const valid = state.doctors.filter(d => !isNaN(d.urgency) && d.urgency >= 1).length >= 2;
+  btn.disabled = !valid;
+}
+
+// ─── SCORING ENGINE ──────────────────────────────────────────────────────────
+function computeScore(d) {
+  const urgScore = (d.urgency / 10) * 45;
+  const waitScore = (Math.min(d.waitHrs, 12) / 12) * 25;
+  const sevScore = (d.severity / 10) * 20;
+  const ageRisk = d.age > 65 ? 10 : d.age > 50 ? 7 : d.age < 5 ? 9 : 5;
+  const ageScore = (ageRisk / 10) * 10;
+  return {
+    total: +(urgScore + waitScore + sevScore + ageScore).toFixed(2),
+    urgScore: +urgScore.toFixed(2),
+    waitScore: +waitScore.toFixed(2),
+    sevScore: +sevScore.toFixed(2),
+    ageScore: +ageScore.toFixed(2)
+  };
+}
+
+function computeCIS(doctors) {
+  const urgencies = doctors.map(d => d.urgency);
+  const maxUrgGap = Math.max(...urgencies) - Math.min(...urgencies);
+  const nFactor = Math.min((doctors.length - 1) / 5, 1) * 30;
+  const gapFactor = (maxUrgGap / 9) * 35;
+  const critMap = {'ICU Bed':1,'Ventilator':1,'OT Slot':0.85,'MRI Scanner':0.65,'Blood Bank':0.9};
+  const critFactor = (critMap[state.selectedResource] || 0.8) * 20;
+  const maxWait = Math.max(...doctors.map(d => d.waitHrs));
+  const waitFactor = Math.min(maxWait / 12, 1) * 15;
+  return Math.min(Math.round(nFactor + gapFactor + critFactor + waitFactor), 100);
+}
+
+function detectEdgeCases(doctors) {
+  const edges = [];
+  doctors.forEach(d => {
+    if (!d.urgency || d.urgency < 1 || d.urgency > 10) edges.push(`${d.name}: urgency out of valid range (${d.urgency})`);
+    if (!d.severity || d.severity < 1) edges.push(`${d.name}: missing severity — using default (7)`);
+    if (d.urgency >= 9 && d.severity <= 3) edges.push(`${d.name}: contradiction — urgency ${d.urgency} but severity ${d.severity}. Flagged for review.`);
+    if (!d.age || d.age < 1) edges.push(`${d.name}: invalid patient age — using actuarial default`);
+  });
+  const scores = doctors.map(d => computeScore(d).total);
+  const unique = new Set(scores);
+  if (unique.size < scores.length) edges.push('Tie detected in weighted scores — escalation protocol activated');
+  return edges;
+}
+
+function getResolutionMethod(cis) {
+  if (cis < 40) return 'Consensus';
+  if (cis < 75) return 'Weighted Scoring';
+  return 'Triage Protocol';
+}
+
+function generateVerdict(winner, all, method, cis) {
+  const reasons = {
+    'Consensus': `Under consensus scoring (CIS ${cis} — low conflict), ${winner.name}'s request was processed first with the highest urgency score, satisfying first-come-first-served protocol.`,
+    'Weighted Scoring': `Under weighted scoring (CIS ${cis} — medium conflict), a multi-factor formula applied: urgency ×45%, wait time ×25%, severity ×20%, age risk ×10%. ${winner.name} achieved the highest composite score of ${computeScore(winner).total.toFixed(1)}.`,
+    'Triage Protocol': `Under SALT/START triage protocol (CIS ${cis} — HIGH conflict), strict medical priority rules were applied. ${winner.name}'s patient presents the most critical immediate risk: urgency ${winner.urgency}/10, severity ${winner.severity}/10, with ${winner.waitHrs}h wait time accumulated.`
+  };
+  return reasons[method] || '';
+}
+
+// ─── RESOLVE ────────────────────────────────────────────────────────────────
+function resolve() {
+  if (state.doctors.length < 2) return;
+  const docs = state.doctors;
+
+  addLog('─── Resolution initiated ───', 'amber');
+  addLog(`Resource: ${state.selectedResource} | Claimants: ${docs.length}`, 'default');
+
+  // Validate & fix
+  docs.forEach(d => {
+    if (!d.severity || d.severity < 1) { d.severity = 7; addLog(`${d.name}: severity missing — defaulted to 7`, 'amber'); }
+    if (!d.age || d.age < 1) { d.age = 45; addLog(`${d.name}: age missing — defaulted to 45`, 'amber'); }
+  });
+
+  const edgeCases = detectEdgeCases(docs);
+  const edgeEl = document.getElementById('edgeAlert');
+  if (edgeCases.length) {
+    edgeEl.classList.add('show');
+    document.getElementById('edgeMsg').textContent = 'Edge cases detected: ' + edgeCases.join(' | ');
+    edgeCases.forEach(e => addLog('EDGE: ' + e, 'amber'));
+  } else {
+    edgeEl.classList.remove('show');
+  }
+
+  const cis = computeCIS(docs);
+  const method = getResolutionMethod(cis);
+  const scored = docs.map(d => ({ ...d, ...computeScore(d) }));
+  scored.sort((a, b) => b.total - a.total);
+
+  // Tie-breaking
+  if (scored.length >= 2 && scored[0].total === scored[1].total) {
+    addLog('TIE DETECTED — applying seniority override', 'amber');
+    const rankOrder = {'Attending':0,'Senior Resident':1,'Junior Resident':2};
+    scored.sort((a,b) => (rankOrder[a.rank]||3) - (rankOrder[b.rank]||3));
+  }
+
+  const winner = scored[0];
+  const rejected = scored.slice(1);
+
+  // Update CIS display
+  updateCIS(cis);
+  updateMethodCards(method);
+
+  // Update verdict
+  renderVerdict(winner, scored, method, cis);
+  renderScoreBreakdown(scored, winner);
+  renderFactors(winner, method);
+  renderRejections(rejected, winner);
+
+  const ts = new Date().toLocaleTimeString();
+  document.getElementById('verdictTime').textContent = ts;
+
+  addLog(`CIS: ${cis} (${cis < 40 ? 'LOW' : cis < 75 ? 'MEDIUM' : 'HIGH'}) → ${method}`, cis >= 75 ? 'red' : cis >= 40 ? 'amber' : 'green');
+  addLog(`RESOLVED → ${winner.name} (${winner.dept}) | Score: ${winner.total}`, 'green');
+  rejected.forEach(r => addLog(`REJECTED → ${r.name} | Score: ${r.total}`, 'default'));
+  addLog('Audit entry written. Immutable.', 'default');
+
+  // History
+  state.history.unshift({ cis, method, resource: state.selectedResource, winner: winner.name, time: ts, docs: docs.length });
+  renderHistory();
+}
+
+// ─── UI UPDATERS ─────────────────────────────────────────────────────────────
+function updateCIS(cis) {
+  const numEl = document.getElementById('cisNumber');
+  const labelEl = document.getElementById('cisLabel');
+  const barEl = document.getElementById('cisBar');
+
+  // Animate number
+  let start = 0;
+  const end = cis;
+  const dur = 800;
+  const step = (ts) => {
+    if (!start) start = ts;
+    const prog = Math.min((ts - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - prog, 3);
+    numEl.textContent = Math.round(eased * end);
+    if (prog < 1) requestAnimationFrame(step);
+    else numEl.textContent = end;
+  };
+  requestAnimationFrame(step);
+
+  let color, labelText, labelBg;
+  if (cis < 40) { color = 'var(--low)'; labelText = 'LOW'; labelBg = 'rgba(46,204,113,0.12)'; }
+  else if (cis < 75) { color = 'var(--med)'; labelText = 'MEDIUM'; labelBg = 'rgba(243,156,18,0.12)'; }
+  else { color = 'var(--high)'; labelText = 'HIGH'; labelBg = 'rgba(231,76,60,0.12)'; }
+
+  numEl.style.color = color;
+  labelEl.textContent = labelText;
+  labelEl.style.background = labelBg;
+  labelEl.style.color = color;
+  barEl.style.width = cis + '%';
+  barEl.style.background = color;
+}
+
+function updateMethodCards(method) {
+  ['mLow','mMed','mHigh'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = {'Consensus':'mLow','Weighted Scoring':'mMed','Triage Protocol':'mHigh'};
+  if (map[method]) document.getElementById(map[method]).classList.add('active');
+}
+
+function renderVerdict(winner, all, method, cis) {
+  const reasoning = generateVerdict(winner, all, method, cis);
+  document.getElementById('verdictBody').innerHTML = `
+    <div class="fade-in">
+      <div class="verdict-box">
+        <div class="verdict-winner">Resource allocated to</div>
+        <div class="verdict-name">
+          <span style="color:${winner.color}">${winner.name}</span>
+          <span class="winner-badge">WINNER</span>
+        </div>
+        <div class="verdict-resource">${state.selectedResource} · ${winner.dept} · ${winner.rank}</div>
+        <div class="verdict-reasoning">${reasoning}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">
+          <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Urgency</div>
+          <div style="font-size:16px;font-weight:500;font-family:'DM Mono',monospace;color:${winner.urgency>=8?'var(--red)':winner.urgency>=5?'var(--amber)':'var(--green)'}">${winner.urgency}/10</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">
+          <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Wait</div>
+          <div style="font-size:16px;font-weight:500;font-family:'DM Mono',monospace">${winner.waitHrs}h</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">
+          <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Severity</div>
+          <div style="font-size:16px;font-weight:500;font-family:'DM Mono',monospace">${winner.severity}/10</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px">
+          <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Comp. score</div>
+          <div style="font-size:16px;font-weight:500;font-family:'DM Mono',monospace;color:var(--green)">${winner.total}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderScoreBreakdown(scored, winner) {
+  const max = Math.max(...scored.map(d => d.total));
+  document.getElementById('scoreBody').innerHTML = `
+    <div class="score-table fade-in">
+      ${scored.map((d, i) => `
+        <div class="score-row">
+          <div class="score-status">${i === 0 ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" fill="var(--green)" fill-opacity="0.15"/><path d="M3.5 6l2 2 3-3.5" stroke="var(--green)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" fill="var(--red)" fill-opacity="0.1"/><path d="M4 4l4 4M8 4l-4 4" stroke="var(--red)" stroke-width="1.2" stroke-linecap="round"/></svg>'}</div>
+          <div class="score-doctor" style="color:${d.color}">${d.name.split(' ').pop()}</div>
+          <div class="score-bar-wrap"><div class="score-bar-inner" style="width:${(d.total/max*100).toFixed(1)}%;background:${i===0?'var(--green)':'var(--s4)'}"></div></div>
+          <div class="score-val" style="color:${i===0?'var(--green)':'var(--t2)'}">${d.total}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderFactors(winner, method) {
+  const w = computeScore(winner);
+  const weights = method === 'Consensus'
+    ? {urg:'FCFS + urgency',wait:'Secondary',sev:'Tertiary',age:'N/A'}
+    : {urg:'×45%',wait:'×25%',sev:'×20%',age:'×10%'};
+  document.getElementById('factorBody').innerHTML = `
+    <div class="factor-grid fade-in">
+      <div class="factor-card">
+        <div class="factor-label">Urgency</div>
+        <div class="factor-val" style="color:var(--red)">${w.urgScore}</div>
+        <div class="factor-weight">${weights.urg}</div>
+      </div>
+      <div class="factor-card">
+        <div class="factor-label">Wait time</div>
+        <div class="factor-val" style="color:var(--blue)">${w.waitScore}</div>
+        <div class="factor-weight">${weights.wait}</div>
+      </div>
+      <div class="factor-card">
+        <div class="factor-label">Severity</div>
+        <div class="factor-val" style="color:var(--amber)">${w.sevScore}</div>
+        <div class="factor-weight">${weights.sev}</div>
+      </div>
+      <div class="factor-card">
+        <div class="factor-label">Age risk</div>
+        <div class="factor-val" style="color:var(--blue)">${w.ageScore}</div>
+        <div class="factor-weight">${weights.age}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px">Winner: ${winner.name} · Total: <span style="color:var(--green);font-family:'DM Mono',monospace">${winner.total}</span></div>
+  `;
+}
+
+function renderRejections(rejected, winner) {
+  if (!rejected.length) { document.getElementById('rejBody').innerHTML = '<div style="color:var(--t3);font-size:12px;text-align:center;padding:8px">No rejected claimants</div>'; return; }
+  const reasons = {
+    0: 'Insufficient urgency score relative to allocated patient',
+    1: 'Lower composite score under weighted algorithm',
+    2: 'Triage protocol prioritises higher immediate risk',
+    3: 'Wait time contribution insufficient to overcome urgency gap',
+    4: 'Severity score below threshold for current conflict level'
+  };
+  document.getElementById('rejBody').innerHTML = `
+    <div class="rejection-list fade-in">
+      ${rejected.map((d, i) => `
+        <div class="rejection-item">
+          <div class="rej-doc" style="color:${d.color}">${d.name}</div>
+          <div class="rej-reason">${reasons[i % 5]} (score: <span style="font-family:'DM Mono',monospace">${d.total}</span> vs winner's <span style="font-family:'DM Mono',monospace;color:var(--green)">${winner.total}</span>)</div>
+          <div class="rej-eta">ETA ~${Math.max(1, Math.round((winner.severity / 7) * 2))}h</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  if (!state.history.length) { el.innerHTML = '<div style="font-size:12px;color:var(--t3);text-align:center;padding:12px 0">No resolutions yet</div>'; return; }
+  el.innerHTML = state.history.slice(0, 5).map(h => `
+    <div class="hist-row">
+      <div class="hist-cis" style="color:${h.cis<40?'var(--low)':h.cis<75?'var(--med)':'var(--high)'}">${h.cis}</div>
+      <div class="hist-desc">${h.resource} → ${h.winner.split(' ').pop()}</div>
+      <div class="hist-time">${h.time}</div>
+    </div>
+  `).join('');
+}
+
+// ─── AUDIT LOG ───────────────────────────────────────────────────────────────
+function addLog(msg, type = 'default') {
+  const ts = new Date().toLocaleTimeString('en-IN', {hour12:false});
+  state.logs.unshift({ ts, msg, type });
+  const el = document.getElementById('logList');
+  const cls = type === 'green' ? 'green' : type === 'red' ? 'red' : type === 'amber' ? 'amber' : '';
+  el.innerHTML = state.logs.slice(0, 40).map(l =>
+    `<div class="log-entry"><span class="log-time">${l.ts}</span><span class="log-msg ${l.type==='green'?'green':l.type==='red'?'red':l.type==='amber'?'amber':''}">${l.msg}</span></div>`
+  ).join('');
+  document.getElementById('logCount').textContent = state.logs.length + ' entries';
+}
+
+// ─── DEMO LOADER ─────────────────────────────────────────────────────────────
+function loadDemo() {
+  state.doctors = [];
+  state.nextId = 1;
+  // Set resource to ICU Bed
+  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.rtab[data-r="ICU Bed"]').classList.add('active');
+  state.selectedResource = 'ICU Bed';
+
+  addDoctor({ name:'Dr. Sharma', dept:'Cardiology', urgency:9, waitHrs:0, age:62, severity:9, diagnosis:'Cardiac Arrest', rank:'Attending' });
+  addDoctor({ name:'Dr. Mehta', dept:'Emergency', urgency:8, waitHrs:2, age:35, severity:7, diagnosis:'Multi-organ Failure', rank:'Senior Resident' });
+  addDoctor({ name:'Dr. Patel', dept:'Neurology', urgency:9, waitHrs:0, age:71, severity:8, diagnosis:'Septic Shock', rank:'Junior Resident' });
+
+  addLog('Demo scenario loaded: 3-way HIGH conflict', 'amber');
+  updateResolveBtn();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+addLog('MediArb system initialised · Session ' + state.sessionId, 'green');
+addLog('Awaiting conflict inputs...', 'default');
+renderDoctors();
+</script>
+</body>
+</html>
