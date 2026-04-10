@@ -822,6 +822,32 @@
       return `Lower weighted total due to weaker ${weakest} contribution (score gap ${gap}).`;
     }
 
+    function escalateClaimant(doctorId) {
+      const d = state.doctors.find((x) => x.id === doctorId);
+      if (!d) return;
+
+      d.urgency = Math.min(10, Number(d.urgency || 0) + 2);
+      d.severity = Math.min(10, Number(d.severity || 0) + 1);
+
+      addLog(`ESCALATION: ${d.name} urgency raised to ${d.urgency} — re-queued for resolution`, 'amber');
+
+      let alertEl = document.getElementById('escalationAlert');
+      if (!alertEl) {
+        alertEl = document.createElement('div');
+        alertEl.id = 'escalationAlert';
+        alertEl.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;display:none;padding:10px 14px;border-radius:10px;background:rgba(243,156,18,0.14);border:1px solid rgba(243,156,18,0.4);color:var(--amber);font-size:12px;font-weight:500;box-shadow:0 12px 30px rgba(0,0,0,0.22)';
+        document.body.appendChild(alertEl);
+      }
+      alertEl.textContent = 'Claimant escalated — re-resolve to update verdict';
+      alertEl.style.display = 'block';
+      clearTimeout(window.__mediarbEscalationToastTimer);
+      window.__mediarbEscalationToastTimer = setTimeout(() => {
+        alertEl.style.display = 'none';
+      }, 3000);
+
+      renderDoctors();
+    }
+
     function renderRejections(rejected, winner) {
       if (!rejected.length) { document.getElementById('rejBody').innerHTML = '<div style="color:var(--t3);font-size:12px;text-align:center;padding:8px">No rejected claimants</div>'; return; }
       const method = state.latestResolution?.method || 'Weighted Scoring';
@@ -831,7 +857,7 @@
         <div class="rejection-item">
           <div class="rej-doc" style="color:${d.color}">${d.name}</div>
           <div class="rej-reason">${buildRejectionReason(d, winner, method)} (score: <span style="font-family:'DM Mono',monospace">${d.total}</span> vs winner's <span style="font-family:'DM Mono',monospace;color:var(--green)">${winner.total}</span>)</div>
-          <div class="rej-eta">ETA ~${estimateQueueEtaHours(i + 1)}h</div>
+          <div class="rej-eta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">ETA ~${estimateQueueEtaHours(i + 1)}h <button class="demo-btn" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:rgba(231,76,60,0.4);background:rgba(231,76,60,0.08)" onclick="escalateClaimant(${d.id})">↑ Escalate</button></div>
         </div>
       `).join('')}
     </div>
@@ -1011,6 +1037,7 @@
     window.toggleDoc = toggleDoc;
     window.updateDoc = updateDoc;
     window.initVoiceForDoctor = initVoiceForDoctor;
+    window.escalateClaimant = escalateClaimant;
     window.resolve = resolve;
     window.loadDemo = loadDemo;
     window.swapDomain = swapDomain;
