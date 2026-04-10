@@ -1,24 +1,24 @@
 export function computeGini(scores) {
-        if (scores.length < 2) return 0;
-        const sorted = [...scores].sort((a, b) => a - b);
-        const n = sorted.length;
-        const mean = sorted.reduce((a, b) => a + b, 0) / n;
-        if (mean === 0) return 0;
-        let numerator = 0;
-        for (let i = 0; i < n; i += 1) {
-                for (let j = 0; j < n; j += 1) {
-                        numerator += Math.abs(sorted[i] - sorted[j]);
-                }
+    if (scores.length < 2) return 0;
+    const sorted = [...scores].sort((a, b) => a - b);
+    const n = sorted.length;
+    const mean = sorted.reduce((a, b) => a + b, 0) / n;
+    if (mean === 0) return 0;
+    let numerator = 0;
+    for (let i = 0; i < n; i += 1) {
+        for (let j = 0; j < n; j += 1) {
+            numerator += Math.abs(sorted[i] - sorted[j]);
         }
-        return +(numerator / (2 * n * n * mean)).toFixed(3);
+    }
+    return +(numerator / (2 * n * n * mean)).toFixed(3);
 }
 
 export function renderFairnessPanel(scored) {
-        const gini = computeGini(scored.map((d) => d.total));
-        const fairness = ((1 - gini) * 100).toFixed(1);
-        const color = fairness > 70 ? "var(--green)" : fairness > 40 ? "var(--amber)" : "var(--red)";
+    const gini = computeGini(scored.map((d) => d.total));
+    const fairness = ((1 - gini) * 100).toFixed(1);
+    const color = fairness > 70 ? "var(--green)" : fairness > 40 ? "var(--amber)" : "var(--red)";
 
-        return `
+    return `
         <div class="panel fade-in">
             <div class="panel-header">
                 <div class="panel-title">Fairness metric</div>
@@ -43,5 +43,5 @@ export function renderFairnessPanel(scored) {
 }
 
 export function giniCoefficient(values) {
-        return computeGini(values);
+    return computeGini(values);
 }

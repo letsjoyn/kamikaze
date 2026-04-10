@@ -1,6 +1,5 @@
 const CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages";
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent";
 function buildPrompt(winner, rejected, method, cis, resource) {
     return `You are MediArb, a hospital resource conflict resolver.
 A conflict for resource: "${resource}" has been resolved.

@@ -46,6 +46,13 @@
       <span id="aiProviderHint" class="tag" style="font-size:10px">Gemini works in browser</span>
       <input id="aiApiKeyInput" class="form-input" type="password" placeholder="AI API key"
         style="width:150px;padding:5px 8px;font-size:11px">
+      <select class="demo-btn" id="demoScenarioSelect" style="padding:4px 8px;background:var(--s2);color:var(--t1);border:1px solid var(--border)">
+        <option value="high" style="background:var(--s2);color:var(--t1)">🔴 High conflict</option>
+        <option value="medium" style="background:var(--s2);color:var(--t1)">🟡 Medium conflict</option>
+        <option value="low" style="background:var(--s2);color:var(--t1)">🟢 Low conflict</option>
+        <option value="edge" style="background:var(--s2);color:var(--t1)">⚠️ Edge case</option>
+        <option value="tie" style="background:var(--s2);color:var(--t1)">⚖️ Tie breaker</option>
+      </select>
       <button class="demo-btn" onclick="loadDemo()">Load demo</button>
       <button class="demo-btn" onclick="exportPDFReport()">Export PDF</button>
     </div>
@@ -891,6 +898,7 @@
     function loadDemo() {
       state.doctors = [];
       state.nextId = 1;
+      const scenario = document.getElementById('demoScenarioSelect')?.value || 'high';
       const resourceSeed = DOMAINS[state.domain].resources[0];
 
       document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
@@ -899,11 +907,50 @@
       state.selectedResource = resourceSeed;
 
       const dx = getDiagnosisOptions(state.selectedResource);
-      addDoctor({ name: 'Dr. Sharma', dept: 'Cardiology', urgency: 9, waitHrs: 0, age: 62, severity: 9, diagnosis: dx[0], rank: 'Attending' });
-      addDoctor({ name: 'Dr. Mehta', dept: 'Emergency', urgency: 8, waitHrs: 2, age: 35, severity: 7, diagnosis: dx[3] || dx[1], rank: 'Senior Resident' });
-      addDoctor({ name: 'Dr. Patel', dept: 'Neurology', urgency: 9, waitHrs: 0, age: 71, severity: 8, diagnosis: dx[1], rank: 'Junior Resident' });
 
-      addLog('Demo scenario loaded: 3-way HIGH conflict', 'amber');
+      const SCENARIOS = {
+        high: {
+          label: '3-way HIGH conflict — all critical, tight race',
+          doctors: [
+            { name: 'Dr. Sharma', dept: 'Cardiology', urgency: 10, waitHrs: 8, age: 62, severity: 9, diagnosis: dx[0], rank: 'Attending' },
+            { name: 'Dr. Mehta', dept: 'Emergency', urgency: 4, waitHrs: 6, age: 35, severity: 8, diagnosis: dx[3] || dx[1], rank: 'Senior Resident' },
+            { name: 'Dr. Patel', dept: 'Neurology', urgency: 9, waitHrs: 5, age: 71, severity: 8, diagnosis: dx[1], rank: 'Junior Resident' },
+          ]
+        },
+        medium: {
+          label: 'Medium conflict — mixed urgency, weighted scoring applies',
+          doctors: [
+            { name: 'Dr. Rao', dept: 'Orthopedics', urgency: 6, waitHrs: 3, age: 45, severity: 6, diagnosis: dx[2] || dx[0], rank: 'Attending' },
+            { name: 'Dr. Iyer', dept: 'Oncology', urgency: 7, waitHrs: 1, age: 58, severity: 5, diagnosis: dx[1], rank: 'Senior Resident' },
+            { name: 'Dr. Kumar', dept: 'Pulmonology', urgency: 5, waitHrs: 4, age: 67, severity: 7, diagnosis: dx[4] || dx[2], rank: 'Attending' },
+          ]
+        },
+        low: {
+          label: 'Low conflict — FIFO + urgency, routine triage',
+          doctors: [
+            { name: 'Dr. Sharma', dept: 'Cardiology', urgency: 4, waitHrs: 1, age: 40, severity: 4, diagnosis: dx[2] || dx[0], rank: 'Senior Resident' },
+            { name: 'Dr. Mehta', dept: 'Emergency', urgency: 3, waitHrs: 2, age: 33, severity: 3, diagnosis: dx[3] || dx[1], rank: 'Junior Resident' },
+          ]
+        },
+        edge: {
+          label: 'Edge case — contradiction: high urgency but low severity',
+          doctors: [
+            { name: 'Dr. Patel', dept: 'Neurology', urgency: 9, waitHrs: 0, age: 200, severity: 2, diagnosis: dx[0], rank: 'Attending' },
+            { name: 'Dr. Rao', dept: 'Orthopedics', urgency: 7, waitHrs: 5, age: 55, severity: 6, diagnosis: dx[1], rank: 'Senior Resident' },
+          ]
+        },
+        tie: {
+          label: 'Tie breaker — identical scores, seniority decides',
+          doctors: [
+            { name: 'Dr. Sharma', dept: 'Cardiology', urgency: 8, waitHrs: 2, age: 55, severity: 8, diagnosis: dx[0], rank: 'Junior Resident' },
+            { name: 'Dr. Mehta', dept: 'Emergency', urgency: 8, waitHrs: 2, age: 55, severity: 8, diagnosis: dx[0], rank: 'Attending' },
+          ]
+        }
+      };
+
+      const chosen = SCENARIOS[scenario] || SCENARIOS.high;
+      chosen.doctors.forEach(d => addDoctor(d));
+      addLog(`Demo loaded: ${chosen.label}`, 'amber');
       updateResolveBtn();
     }
 
