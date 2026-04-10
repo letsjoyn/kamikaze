@@ -43,6 +43,7 @@
         <option value="gemini" selected>Gemini</option>
         <option value="claude">Claude</option>
       </select>
+      <span id="aiProviderHint" class="tag" style="font-size:10px">Gemini works in browser</span>
       <input id="aiApiKeyInput" class="form-input" type="password" placeholder="AI API key"
         style="width:150px;padding:5px 8px;font-size:11px">
       <button class="demo-btn" onclick="loadDemo()">Load demo</button>
@@ -616,7 +617,11 @@
         const preferenceFit = Math.min(100, Math.max(0, d.baseTotal || d.total));
         const gapRatio = Math.max(0, (winnerScore - (d.baseTotal || d.total)) / winnerScore);
         const competitiveness = d.name === winner.name ? 100 : Math.max(0, 100 - gapRatio * 120);
-        d.satisfaction = +Math.min(100, Math.max(0, (preferenceFit * 0.6) + (competitiveness * 0.4))).toFixed(1);
+        if (d.name === winner.name) {
+          d.satisfaction = +Math.min(100, 60 + (preferenceFit * 0.4)).toFixed(1);
+        } else {
+          d.satisfaction = +Math.min(100, Math.max(0, (preferenceFit * 0.6) + (competitiveness * 0.4))).toFixed(1);
+        }
       });
 
       const reasoning = state.aiNarrativeEnabled
@@ -850,7 +855,6 @@
       const ts = new Date().toLocaleTimeString('en-IN', { hour12: false });
       state.logs.unshift({ ts, msg, type });
       const el = document.getElementById('logList');
-      const cls = type === 'green' ? 'green' : type === 'red' ? 'red' : type === 'amber' ? 'amber' : '';
       el.innerHTML = state.logs.slice(0, 40).map(l =>
         `<div class="log-entry"><span class="log-time">${l.ts}</span><span class="log-msg ${l.type === 'green' ? 'green' : l.type === 'red' ? 'red' : l.type === 'amber' ? 'amber' : ''}">${l.msg}</span></div>`
       ).join('');
@@ -881,6 +885,7 @@
       const toggleEl = document.getElementById('aiNarrativeToggle');
       const providerEl = document.getElementById('aiProviderSelect');
       const keyEl = document.getElementById('aiApiKeyInput');
+      const hintEl = document.getElementById('aiProviderHint');
       state.aiNarrativeEnabled = Boolean(toggleEl?.checked);
       if (providerEl) {
         providerEl.disabled = !state.aiNarrativeEnabled;
@@ -889,6 +894,15 @@
       if (keyEl) {
         keyEl.disabled = !state.aiNarrativeEnabled;
         window.MEDIARB_AI_API_KEY = keyEl.value.trim();
+      }
+      if (hintEl) {
+        if (!state.aiNarrativeEnabled) {
+          hintEl.textContent = 'AI narrative disabled';
+        } else if ((providerEl?.value || 'gemini') === 'claude') {
+          hintEl.textContent = 'Claude in browser may need proxy (CORS)';
+        } else {
+          hintEl.textContent = 'Gemini works in browser';
+        }
       }
     }
 
@@ -947,8 +961,17 @@
       doc.setFont('helvetica', 'bold');
       doc.text('REJECTED CLAIMANTS', 20, 150);
       doc.setFont('helvetica', 'normal');
+      let y = 160;
       rejectedQueue.forEach((r, i) => {
-        doc.text(`${r.name}: score ${r.total} (urgency ${r.urgency}, severity ${r.severity})`, 20, 160 + i * 10);
+        if (y > 280) {
+          doc.addPage();
+          doc.setFont('helvetica', 'bold');
+          doc.text('REJECTED CLAIMANTS (CONT.)', 20, 20);
+          doc.setFont('helvetica', 'normal');
+          y = 30;
+        }
+        doc.text(`${i + 1}. ${r.name}: score ${r.total} (urgency ${r.urgency}, severity ${r.severity})`, 20, y);
+        y += 10;
       });
 
       doc.save(`MediArb_${state.sessionId}_${Date.now()}.pdf`);
